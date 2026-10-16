@@ -43,7 +43,8 @@ What's different from the effectdoc most tools are based on:
 
 ## Simulator
 
-Open [`simulator/index.html`](simulator/index.html) in a browser (no build, no
+**Try it online: <https://stevenhrovat.github.io/msi-laptop-ec-protocols/simulator/>**,
+or open [`simulator/index.html`](simulator/index.html) locally (no build, no
 server needed). It:
 
 - plays a program on a 30-zone bar with the measured timing, wave delays and a
