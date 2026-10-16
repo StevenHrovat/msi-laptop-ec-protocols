@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lightbar Simulator</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --line: #dfe2e7; --text: #1b1e24; --muted: #636b78;
+    --accent: #2f6fde; --brick: #c62828; --error: #d84315; --warn: #a66b00; --info: #4a5567;
+    --stage: #07080a; --code: #f0f2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115; --panel: #171a20; --line: #2a2f38; --text: #e6e8ec; --muted: #9aa3b2;
+      --accent: #6ea1ff; --brick: #ff6b6b; --error: #ff8a50; --warn: #e3b341; --info: #a9b4c6;
+      --stage: #000000; --code: #0f1217;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115; --panel: #171a20; --line: #2a2f38; --text: #e6e8ec; --muted: #9aa3b2;
+    --accent: #6ea1ff; --brick: #ff6b6b; --error: #ff8a50; --warn: #e3b341; --info: #a9b4c6;
+    --stage: #000000; --code: #0f1217;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .sub a { color: var(--accent); }
+  .stage { background: var(--stage); border-radius: 14px; padding: 34px 18px 18px; }
+  #bar { width: 100%; height: auto; display: block; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-top: 14px; color: #c9ced6; font-size: 14px; }
+  .controls button, .controls select { background: #1d2129; color: #e6e8ec; border: 1px solid #333a45; border-radius: 8px; padding: 5px 12px; font: inherit; cursor: pointer; }
+  .controls label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .time { font-variant-numeric: tabular-nums; margin-left: auto; color: #9aa3b2; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } .time { margin-left: 0; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+  .card h2 { font-size: 15px; margin: 0 0 10px; }
+  .note { color: var(--muted); font-size: 14px; margin: 8px 0 12px; min-height: 1.5em; }
+  select.full { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 6px; }
+  .tabs button { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 8px 8px 0 0; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--panel); background: var(--code); }
+  textarea { width: 100%; min-height: 300px; resize: vertical; font: 12.5px/1.45 ui-monospace, Consolas, monospace; background: var(--code); color: var(--text); border: 1px solid var(--line); border-radius: 0 8px 8px 8px; padding: 10px; }
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 7px 16px; font: inherit; cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  .err { color: var(--error); font-size: 14px; }
+  ul.checks { list-style: none; padding: 0; margin: 0; }
+  ul.checks li { padding: 6px 0 6px 12px; border-left: 3px solid var(--line); margin-bottom: 6px; font-size: 14px; }
+  li.brick { border-color: var(--brick) !important; color: var(--brick); font-weight: 600; }
+  li.error { border-color: var(--error) !important; }
+  li.warn { border-color: var(--warn) !important; }
+  li.info { border-color: var(--info) !important; color: var(--muted); }
+  li.ok { border-color: #3fa66b !important; }
+  #plot { width: 100%; height: 160px; display: block; background: var(--code); border-radius: 8px; }
+  .legend { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .theme { float: right; background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 3px 10px; cursor: pointer; font: inherit; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <button class="theme" id="theme" title="Switch light/dark">◐</button>
+  <h1>Lightbar simulator</h1>
+  <p class="sub">Plays SteelSeries effect programs the way the MSI GE76 front bar does (rate model, 10 ms ticks, wave delay model). Paste frames or edit a program. Details in <a href="../docs/lighting-protocol.md">lighting-protocol.md</a>.</p>
+
+  <div class="stage">
+    <canvas id="bar" width="1200" height="110"></canvas>
+    <div class="controls">
+      <button id="play">Pause</button>
+      <button id="restart">Restart</button>
+      <label>Speed
+        <select id="speed">
+          <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option>
+          <option value="2">2×</option><option value="4">4×</option><option value="10">10×</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="diffuser" checked> Frosted diffuser</label>
+      <span class="time" id="time"></span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Program</h2>
+      <select class="full" id="examples"></select>
+      <div class="note" id="note"></div>
+      <div class="tabs"><button class="on" data-tab="json">Program (JSON)</button><button data-tab="hex">Frames (hex)</button></div>
+      <textarea id="src" spellcheck="false"></textarea>
+      <div class="row">
+        <button class="btn" id="load">Load</button>
+        <button class="btn ghost" id="copy">Copy</button>
+        <span class="err" id="err"></span>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h2>Checks</h2>
+        <ul class="checks" id="checks"></ul>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>One loop per slot</h2>
+        <canvas id="plot" width="600" height="160"></canvas>
+        <div class="legend" id="legend">Register value of each channel over one loop (0 to 255 levels).</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script src="examples.js"></script>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+let sim = null, program = null, tab = "json";
+let t = 0, playing = true, last = performance.now();
+
+// ---------------------------------------------------------- theme
+$("#theme").onclick = () => {
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const cur = document.documentElement.dataset.theme || (dark ? "dark" : "light");
+  document.documentElement.dataset.theme = cur === "dark" ? "light" : "dark";
+  drawPlot();
+};
+
+// ---------------------------------------------------------- program in/out
+function programJson(p) {
+  const n = Engine.normalize(p);
+  const zones = n.zones.every((z) => z === n.zones[0]) ? n.zones[0] : n.zones;
+  const slots = n.slots.map((s) => ({ id: s.id, start: s.start, transitions: s.transitions, wave: s.wave }));
+  let text = JSON.stringify({ slots, zones, finalize: n.finalize }, null, 2);
+  // keep transitions and zone lists on one line each
+  text = text.replace(/\[\s+(-?\d+),\s+(-?\d+),\s+(-?\d+)(?:,\s+(-?\d+))?\s+\]/g, (m, a, b, c, d) => `[${a}, ${b}, ${c}${d !== undefined ? ", " + d : ""}]`);
+  text = text.replace(/"zones": \[([\s\S]*?)\]/, (m, inner) => `"zones": [${inner.trim().split(/,\s*/).join(", ")}]`);
+  return text;
+}
+
+function show(p, notes = []) {
+  program = p;
+  sim = new Engine.Simulation(p);
+  t = 0;
+  $("#src").value = tab === "json" ? programJson(p) : Engine.toHex(Engine.encode(p));
+  renderChecks(notes);
+  drawPlot();
+}
+
+function renderChecks(extra) {
+  const items = Engine.check(program).concat(extra.map((text) => ({ level: "warn", text })));
+  const order = { brick: 0, error: 1, warn: 2, info: 3 };
+  items.sort((a, b) => order[a.level] - order[b.level]);
+  if (!items.some((i) => i.level !== "info")) items.unshift({ level: "ok", text: "Safe to send, loops are stable." });
+  $("#checks").replaceChildren(...items.map((i) => Object.assign(document.createElement("li"), { className: i.level, textContent: i.text })));
+}
+
+function load() {
+  $("#err").textContent = "";
+  try {
+    if (tab === "json") {
+      const p = JSON.parse($("#src").value);
+      show(Object.assign({}, p));
+    } else {
+      const { program: p, notes } = Engine.decode(Engine.parseHex($("#src").value));
+      show(p, notes);
+    }
+  } catch (e) {
+    $("#err").textContent = e.message;
+  }
+}
+
+document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+  tab = b.dataset.tab;
+  if (program) $("#src").value = tab === "json" ? programJson(program) : Engine.toHex(Engine.encode(program));
+});
+
+$("#examples").replaceChildren(...EXAMPLES.map((e, i) => Object.assign(document.createElement("option"), { value: i, textContent: e.name })));
+$("#examples").onchange = () => {
+  const e = EXAMPLES[$("#examples").value];
+  $("#note").textContent = e.note;
+  show(e);
+};
+$("#load").onclick = load;
+$("#copy").onclick = () => navigator.clipboard?.writeText($("#src").value);
+
+// ---------------------------------------------------------- playback
+$("#play").onclick = () => { playing = !playing; $("#play").textContent = playing ? "Pause" : "Play"; };
+$("#restart").onclick = () => { if (program) sim = new Engine.Simulation(program); t = 0; };
+
+function frame(now) {
+  const dt = Math.min(100, now - last);
+  last = now;
+  if (playing) t += dt * parseFloat($("#speed").value) / 10; // 1 tick = 10 ms
+  if (sim) drawBar(sim.colors(Math.floor(t)));
+  $("#time").textContent = `${(t / 100).toFixed(1)} s · tick ${Math.floor(t)}`;
+  requestAnimationFrame(frame);
+}
+
+const bar = $("#bar"), bctx = bar.getContext("2d");
+function drawBar(colors) {
+  const W = bar.width, H = bar.height, n = colors.length;
+  bctx.save();
+  bctx.fillStyle = "#000";
+  bctx.fillRect(0, 0, W, H);
+  const diff = $("#diffuser").checked;
+  let cs = colors;
+  if (diff) {
+    const k = [0.10, 0.22, 1, 0.22, 0.10];
+    cs = colors.map((_, z) => {
+      const acc = [0, 0, 0]; let wsum = 0;
+      for (let j = -2; j <= 2; j++) {
+        const zz = z + j; if (zz < 0 || zz >= n) continue;
+        const w = k[j + 2]; wsum += w;
+        for (let c = 0; c < 3; c++) acc[c] += colors[zz][c] * w;
+      }
+      return acc.map((v) => Math.round(v / wsum));
+    });
+  }
+  const pad = 10, cw = (W - pad * 2) / n;
+  if (diff) {
+    // glow layer, then the strip itself
+    bctx.filter = "blur(14px)";
+    cs.forEach((c, z) => { bctx.fillStyle = `rgb(${c})`; bctx.fillRect(pad + z * cw - 2, 26, cw + 4, 58); });
+    bctx.filter = "blur(4px)";
+    cs.forEach((c, z) => { bctx.fillStyle = `rgb(${c})`; bctx.fillRect(pad + z * cw - 1, 40, cw + 2, 30); });
+    bctx.filter = "none";
+  } else {
+    cs.forEach((c, z) => { bctx.fillStyle = `rgb(${c})`; bctx.fillRect(pad + z * cw + 2, 38, cw - 4, 34); });
+  }
+  bctx.restore();
+}
+
+// ---------------------------------------------------------- loop plot
+function drawPlot() {
+  const cv = $("#plot"), ctx = cv.getContext("2d");
+  const W = cv.width = cv.clientWidth * devicePixelRatio, H = cv.height = 160 * devicePixelRatio;
+  ctx.clearRect(0, 0, W, H);
+  if (!sim) return;
+  const slots = sim.p.slots.filter((s) => s.transitions.some((tr) => tr[3] > 0));
+  if (!slots.length) { $("#legend").textContent = "No animated slots in this program."; return; }
+  const rows = slots.length, rh = H / rows;
+  const cols = ["#ff4d4d", "#3ccf6e", "#4d8dff"];
+  ctx.lineWidth = 1.5 * devicePixelRatio;
+  slots.forEach((s, r) => {
+    const pts = sim.loop(s.id), top = r * rh + 6, h = rh - 12;
+    for (let c = 0; c < 3; c++) {
+      ctx.strokeStyle = cols[c];
+      ctx.beginPath();
+      pts.forEach((p, i) => {
+        const x = (i / (pts.length - 1)) * (W - 8) + 4, y = top + h - (p[c] / Engine.REG_MAX) * h;
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      });
+      ctx.stroke();
+    }
+  });
+  $("#legend").textContent = "Register value of each channel over one loop (bottom 0, top 255): " +
+    slots.map((s) => `slot ${s.id} ${s.total} ticks`).join(", ") + ".";
+}
+addEventListener("resize", drawPlot);
+
+$("#examples").onchange();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
